@@ -1,0 +1,142 @@
+---
+title: "Obligatory Assignment 2"
+author: "Abraham Girmai Habtai"
+date: "15 november 2018"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# **_Reading Static web-pages_**
+
+Cleaning working directory and calling packeges
+
+```{r, message=FALSE}
+rm(list=ls())
+library(ggplot2)
+library(dplyr)
+library(tidyverse)
+library(mosaic)
+```
+
+## reading Equinor historical daily data, through read_csv its a wrapper function and it assume that the first row contains the column names, and assigning date format.
+
+
+```{r}
+dateformat <- col_date(format = "%Y%m%d")
+
+Equinor <- read_csv("https://www.netfonds.no/quotes/paperhistory.php?paper=EQNR.OSE&csv_format=csv", 
+                    col_types = cols(quote_date = dateformat))
+```
+
+## checking the structure and reviweing tools of
+```{r}
+str(Equinor)
+glimpse(Equinor)
+head(Equinor)
+tail(Equinor)
+names(Equinor)
+
+```
+
+## selecting data and cleaning data
+```{r}
+Equinor<- Equinor %>% select(quote_date, close) 
+colnames(Equinor)[1]<-"date"
+colnames(Equinor)[2] <- "Eqr_close"              
+names(Equinor)
+
+```
+
+## reapeating the process for NHY
+```{r, message=FALSE}
+Norsk_hydro <- read_csv("https://www.netfonds.no/quotes/paperhistory.php?paper=NHY.OSE&csv_format=csv",
+                  col_types = cols(quote_date = dateformat),
+                )
+```
+
+## checking and manipulating data
+
+```{r}
+nhy<-Norsk_hydro %>% select(quote_date,close)
+colnames(nhy)<-c("date","nhy_close")
+merging_giants <- merge(x= Equinor, y=nhy, by= 'date', all.x= T)
+glimpse(merging_giants)
+summary(merging_giants)
+head(merging_giants,10)
+```
+
+## gathering and ploting data
+```{r}
+long_mergeddata <- merging_giants %>% gather(key = "variable", value = "value", -date)
+head(long_mergeddata,10)
+ggplot(long_mergeddata, aes(x = date, y = value)) + 
+  geom_line(aes(color = variable)) +
+  scale_color_manual(values = c("#00AFBB", "#E7B800")) 
+```
+
+## ploting data with date limits, January 4, 2010 as the starting point of the plot
+
+```{r message = FALSE}
+min <- as.Date("2010-1-04")
+max <- NA
+ggplot(long_mergeddata, aes(x = date, y = value)) + 
+  geom_line(aes(color = variable)) +
+  scale_color_manual(values = c("#00AFBB", "#E7B800")) + scale_x_date(limits = c(min, max))
+
+```
+
+## calculating the returns and plotting the cumulative return, and removing th NA that follows the log code. Use January 4, 2010 as the starting point of the cumulative plot, i.e. it is equal to 100.
+
+```{r }
+colnames(merging_giants)
+#calculating log diff
+merging_giants <-merging_giants %>% 
+                mutate(., Eqr.returns=c(NA, diff(log( Eqr_close))),
+                       hydro.returns=c(NA, diff(log(nhy_close))))
+
+#Take logs and lag, then difference
+ merging_giants %>% select(date,Eqr_close)%>% 
+  mutate(., lag.equinor.returns=dplyr::lag(Eqr_close))
+
+
+
+#remove NA values
+merging_giants <- merging_giants[complete.cases(merging_giants),]
+
+names(merging_giants)
+#finding cumsum
+merged_Cumsum_retuns <- merging_giants %>% mutate(equinor.cumulative.returns=cumsum(Eqr.returns),
+                              hydro.cumulative.returns=cumsum(hydro.returns))
+
+colnames(merged_Cumsum_retuns)
+
+# change it to a long data with 2 variables
+sorted_longreturn <-merged_Cumsum_retuns  %>% select(date, equinor.cumulative.returns, hydro.cumulative.returns) %>% 
+  gather(key = "variable", value = "returns", -date)
+
+head(sorted_longreturn,4)
+ggplot(sorted_longreturn, aes(x = date, y = returns)) + 
+  geom_line(aes(color = variable)) +
+  scale_color_manual(values = c("#00AFBB", "#E7B800"))
+
+# finding base value for 4 january
+base <- filter(merged_Cumsum_retuns, date=="2010-1-4")
+base
+
+# changing the cumulative returns by base
+names(merged_Cumsum_retuns)
+base_returns<- merged_Cumsum_retuns %>% select(date, equinor.cumulative.returns, hydro.cumulative.returns) %>%
+mutate(equinor.cumulative.returns=100*equinor.cumulative.returns/base$equinor.cumulative.returns,
+         hydro.cumulative.returns=100*hydro.cumulative.returns/base$hydro.cumulative.returns)
+
+# sorting the result in a long data
+Long_basereturns <- base_returns %>% 
+  select(date, equinor.cumulative.returns, hydro.cumulative.returns) %>% gather(key = "variable", value = "returns", -date)
+head(Long_basereturns)
+```
+
