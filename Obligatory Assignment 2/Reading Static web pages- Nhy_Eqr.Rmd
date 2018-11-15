@@ -73,7 +73,7 @@ head(merging_giants,10)
 ## gathering and ploting data
 ```{r}
 long_mergeddata <- merging_giants %>% gather(key = "variable", value = "value", -date)
-head(long_mergeddata,10)
+head(long_mergeddata,4)
 ggplot(long_mergeddata, aes(x = date, y = value)) + 
   geom_line(aes(color = variable)) +
   scale_color_manual(values = c("#00AFBB", "#E7B800")) 
@@ -91,23 +91,24 @@ ggplot(long_mergeddata, aes(x = date, y = value)) +
 ```
 
 ## calculating the returns and plotting the cumulative return, and removing th NA that follows the log code. Use January 4, 2010 as the starting point of the cumulative plot, i.e. it is equal to 100.
-
-```{r }
+```{r}
 colnames(merging_giants)
 #calculating log diff
 merging_giants <-merging_giants %>% 
                 mutate(., Eqr.returns=c(NA, diff(log( Eqr_close))),
                        hydro.returns=c(NA, diff(log(nhy_close))))
+```
+
+```{r results='hide'}
 
 #Take logs and lag, then difference
  merging_giants %>% select(date,Eqr_close)%>% 
   mutate(., lag.equinor.returns=dplyr::lag(Eqr_close))
+```
 
-
-
+```{r }
 #remove NA values
 merging_giants <- merging_giants[complete.cases(merging_giants),]
-
 names(merging_giants)
 #finding cumsum
 merged_Cumsum_retuns <- merging_giants %>% mutate(equinor.cumulative.returns=cumsum(Eqr.returns),
