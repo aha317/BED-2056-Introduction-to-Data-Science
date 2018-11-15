@@ -1,0 +1,123 @@
+---
+title: "Reading data from SSB (API or static web-scraping)"
+author: "Abraham Girmai Habtai"
+date: "15 november 2018"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE, message=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Obligatory Assignment 3: SSB data
+
+```{r}
+rm(list=ls())
+library(PxWebApiData)
+library(tidyr)
+library(zoo)
+library(dplyr)
+```
+
+# Nation data
+
+** Importing Capacity utilization on beds and price per room, of the nation as a whole**
+
+```{r}
+kap_u_land <- ApiData("95276", getDataByGET = T, urlType = "SSB",sep = ";" )
+glimpse(kap_u_land)
+
+```
+
+##cleaning and manipulating nation data
+```{r}
+nation_data <- kap_u_land[[1]]
+colnames(nation_data)
+# creating col _names vector
+nation_names <- c("nation", "date", "statistical_variable_n", "value")
+# renaming variables
+names(nation_data) <- nation_names
+# changing structure from long to wide, The spread() function from tidyr is designed to help with this
+nation_data <- spread(nation_data,statistical_variable_n,value)
+
+# new varibel names
+nation_variables <- c("nation", "date", "%utilization_per_room", "%utilization_per_beds", "nation_price")
+
+names(nation_data) <- nation_variables
+# looking for relationship between capacity and price
+cor.test(nation_data$nation_price,nation_data$`%utilization_per_room`)
+cor.test(nation_data$nation_price,nation_data$`%utilization_per_beds`)
+#manipulating nation_data, first the date variable, and then subseting for price over 0 and selecting variables for merging
+nation_data  <- separate(nation_data,date, c("year", "month"), sep = "M") 
+nation_data <- unite(nation_data, date, c("year", "month"), sep = "-")
+nation_data <- filter(nation_data, nation_price > 0)
+nation_data <- subset(nation_data, select = c("date","nation_price") )
+# assgning date. the data has only , year and month, but the zoo packacge have somthing that can help us, as.Date will fix the first day of each month to a yearmon object 
+nation_data$date<- as.Date(as.yearmon(nation_data$date))
+# onle last glimpse
+glimpse(nation_data)
+head(nation_data,4)
+```
+
+# County data
+
+```{r}
+kap_u_pr_fylke <- ApiData("95274", getDataByGET = T, urlType = "SSB", sep = ";")
+glimpse(kap_u_pr_fylke)
+
+```
+
+
+###subsetting data, and manipulating county data
+```{r}
+#subsetting list
+county_data <- kap_u_pr_fylke[[1]]
+colnames(county_data)
+# creating col _names vector
+county_names <- c("county", "date", "statistical_variable", "value")
+# assgning names to county data
+names(county_data) <- county_names
+# changing structure from long to wide, The spread() function from tidyr is designed to help with this
+county_data <- spread(county_data,statistical_variable,value)
+# new varibel names
+variable_names <- c("county", "date", "%utilization_per_room", "%utilization_per_beds", "county_price")
+
+# naming county variabes
+names(county_data) <- variable_names
+# looking for relationship between capacity and price
+cor.test(county_data$county_price,county_data$`%utilization_per_room`)
+cor.test(county_data$county_price,county_data$`%utilization_per_beds`)
+
+# manipulating date
+county_data  <- separate(county_data,date, c("year", "month"), sep = "M") 
+county_data <- unite(county_data, date, c("year", "month"), sep = "-")
+# subseting within the data frame county_data
+county_data <- filter(county_data, county_price > 0)
+county_data <- subset(county_data, select = c("county","date","county_price") )
+# assgning date. the data has only , year and month, but the zoo packacge have somthing that can help us, as.Date will fix the first day of each month to a yearmon object 
+county_data$date<- as.Date(as.yearmon(county_data$date))
+# onle last glimpse
+glimpse(county_data)
+head(county_data,4)
+```
+
+## Merging data and reviewing data
+
+```{r}
+capacity_utilization <- left_join(nation_data,county_data, by="date")
+glimpse(capacity_utilization)
+head(capacity_utilization)
+names(capacity_utilization)
+# printing and saving mean price for both county and nation, and calculating diff
+mean_nation <- print(c(mean(capacity_utilization$nation_price)))
+mean_county <- print(c(mean(capacity_utilization$county_price)))
+mean_nation - mean_county
+# counties below nation average
+cheap_counties <- capacity_utilization %>% filter(county_price < mean_nation)
+# expensive counties
+expensive_counties <- capacity_utilization %>% filter(county_price > mean_nation)
+
+```
+
