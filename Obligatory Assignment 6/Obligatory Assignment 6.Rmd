@@ -1,0 +1,99 @@
+---
+title: "read accounting dataset DS & small dataset df"
+author: "Abraham Girmai Habtai"
+date: "29 oktober 2018"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+##**Task 1**
+ 
+ * first uploading packages and clearing workplace
+```{r message=FALSE}
+rm(list=ls())
+library(readr)
+library(tidyverse)
+library(latticeExtra)
+library(skimr)
+library(plyr)
+
+```
+ 
+* Read the following accounting dataset DS
+```{r}
+DS = tribble(
+  ~fk_account_code, ~Ansvar, ~fk_function_code, ~fk_project_code, ~amount,
+  101030,40220,"Det",3432,1493.00,
+  101030,40220,"Met",3586,2827.00,
+  101030,40320,"Det",3456,49440.00,
+  101030,40330,"Sal",NA,870716.00,
+  101030,40350,"Met",NA,559928.00,
+  101030,40360,"Sal",NA,125534.00,
+  101030,40280,"Pol",NA,251611.00)
+```
+
+ * Remove the "fk_project_code" variable from DS.
+```{r}
+glimpse(DS)
+DS["fk_project_code"]<- NULL
+```
+ 
+ * Sum the "amount" by the 3 first digits of "Ansvar"; 402, 403, etc.
+```{r}
+DS$Ansvar<-sub("^(\\d{3}).*$", "\\1", DS$Ansvar)
+DS$Ansvar<-as.numeric(DS$Ansvar)
+DS$amount<-as.numeric(DS$amount)
+rowSums(DS[,c(2,4)])
+```
+ 
+ **Make new "labels" for "fk_function_code", where:**
+
+ * "Det" and "Sal" is "supplies",
+
+ * "Met" is "inventories"
+  
+ * "Pol" is "other expenses"
+```{r}
+DS$fk_function_code<-recode(DS$fk_function_code,
+                            "Met"="inventories",
+                            "Pol" = "other expenses", 
+                            "Det" = "supplies",
+                            "Sal" = "supplies" )
+glimpse(DS)
+```
+ 
+ ##**Task 2**
+
+* Read the following small dataset df:
+```{r}
+df <- data.frame(Product=gl(3,10,labels=c("A","B", "C")), 
+                 Year=factor(rep(2002:2011,3)), 
+                 Sales=1:30)
+glimpse(df)
+```
+
+ * Calculate the share of sales per product per year. The sum over the 3 shares per year is 100.
+```{r}
+ratio<-function(x) x/sum(x)
+
+df_sale_ratio<-ddply(df, "Year", transform, Share=ratio(Sales))
+```
+ 
+ * Make a plot of the sales and shares per year per company.
+```{r}
+library(latticeExtra)
+asTheEconomist(
+  xyplot(Sales + Share ~ Year, groups=Product, 
+         data=df_sale_ratio, t="b", 
+         scales=list(relation="free",x=list(rot=45)), 
+         auto.key=list(space="top", column=3),
+         main="Company progress")
+)
+```
+ 
+ 
